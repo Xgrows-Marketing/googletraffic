@@ -455,7 +455,9 @@
         function parseNumeric(value) {
             if (typeof value === 'number') return value;
             if (typeof value === 'string') {
-                const cleaned = value.replace(/[,$%]/g, '');
+                // Handle special characters and formats
+                if (value === '∞' || value === 'Infinity' || value === '') return 0;
+                const cleaned = value.replace(/[,$%∞]/g, '');
                 const num = parseFloat(cleaned);
                 return isNaN(num) ? 0 : num;
             }
@@ -463,8 +465,12 @@
         }
 
         function parsePercentage(value) {
-            if (typeof value === 'string' && value.includes('%')) {
-                return parseFloat(value.replace('%', ''));
+            if (typeof value === 'string') {
+                if (value === '∞' || value === 'Infinity') return 0;
+                if (value.includes('%')) {
+                    const cleaned = value.replace('%', '');
+                    return parseFloat(cleaned);
+                }
             }
             return parseNumeric(value);
         }
@@ -502,16 +508,43 @@
             hideError();
 
             Papa.parse(file, {
-                header: true,
+                header: false,
                 skipEmptyLines: true,
-                dynamicTyping: true,
                 complete: function(results) {
                     try {
-                        const data = results.data.filter(row => row.Keyword && row.Keyword.trim() !== '');
+                        // Find the header row (contains "Keyword")
+                        let headerRowIndex = -1;
+                        for (let i = 0; i < results.data.length; i++) {
+                            if (results.data[i][0] === 'Keyword') {
+                                headerRowIndex = i;
+                                break;
+                            }
+                        }
+
+                        if (headerRowIndex === -1) {
+                            throw new Error('Could not find keyword data in CSV');
+                        }
+
+                        // Extract headers and data
+                        const headers = results.data[headerRowIndex];
+                        const dataRows = results.data.slice(headerRowIndex + 1);
+
+                        // Convert to objects
+                        const data = dataRows
+                            .map(row => {
+                                const obj = {};
+                                headers.forEach((header, index) => {
+                                    obj[header] = row[index];
+                                });
+                                return obj;
+                            })
+                            .filter(row => row.Keyword && row.Keyword.trim() !== '' && row.Keyword !== 'Keyword');
+
                         csvData = data;
                         generateReport(data);
                     } catch (err) {
-                        showError('Error processing CSV file. Please check the format.');
+                        showError('Error processing CSV file: ' + err.message);
+                        console.error('CSV processing error:', err);
                     }
                     hideLoading();
                 },
@@ -523,6 +556,8 @@
         }
 
         function generateReport(data) {
+            console.log('Processing data:', data); // Debug log
+
             const totalKeywords = data.length;
             const totalSearchVolume = _.sumBy(data, row => parseNumeric(row['Avg. monthly searches']));
             const avgMonthlySearches = Math.round(totalSearchVolume / totalKeywords);
@@ -551,7 +586,7 @@
                 totalSearchVolume,
                 avgMonthlySearches,
                 competitionDistribution,
-                avgBid: avgBid.toFixed(2),
+                avgBid: isNaN(avgBid) ? 0 : avgBid.toFixed(2),
                 topKeywords,
                 growingKeywords,
                 opportunities,
@@ -562,6 +597,7 @@
                 })
             };
 
+            console.log('Generated report:', report); // Debug log
             displayReport();
         }
 
