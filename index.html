@@ -818,3 +818,157 @@
                 printWindow.print();
                 printWindow.close();
             }, 250);
+        }
+
+        function generatePDFContent() {
+            if (!report) return '';
+
+            return `
+                <div class="report-container">
+                    <div class="header">
+                        <h1>Keyword Performance Report</h1>
+                        <p>Generated on ${report.generatedDate}</p>
+                    </div>
+
+                    <div class="metrics-grid">
+                        <div class="metric-card">
+                            <div class="metric-value">${report.totalKeywords}</div>
+                            <div class="metric-label">Total Keywords</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">${report.totalSearchVolume.toLocaleString()}</div>
+                            <div class="metric-label">Total Monthly Searches</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">${report.avgMonthlySearches.toLocaleString()}</div>
+                            <div class="metric-label">Avg Monthly Searches</div>
+                        </div>
+                        <div class="metric-card">
+                            <div class="metric-value">${report.avgBid}</div>
+                            <div class="metric-label">Average Max Bid</div>
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2 class="section-title">Competition Analysis</h2>
+                        <div class="competition-grid">
+                            ${Object.entries(report.competitionDistribution).map(([level, count]) => `
+                                <div class="competition-item">
+                                    <div class="competition-count ${level.toLowerCase()}">${count}</div>
+                                    <div>${level} Competition</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+
+                    <div class="section">
+                        <h2 class="section-title">Top 10 Keywords by Search Volume</h2>
+                        <table class="keyword-table">
+                            <thead>
+                                <tr>
+                                    <th>Keyword</th>
+                                    <th style="text-align: right;">Monthly Searches</th>
+                                    <th style="text-align: center;">Competition</th>
+                                    <th style="text-align: right;">Max Bid</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${report.topKeywords.map(keyword => `
+                                    <tr>
+                                        <td style="font-weight: 500;">${keyword.Keyword}</td>
+                                        <td style="text-align: right;">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
+                                        <td style="text-align: center;">
+                                            <span class="competition-${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
+                                        </td>
+                                        <td style="text-align: right;">${parseNumeric(keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
+
+                    ${report.growingKeywords.length > 0 ? `
+                        <div class="section">
+                            <h2 class="section-title">Growing Keywords (Positive YoY Growth)</h2>
+                            <table class="keyword-table">
+                                <thead>
+                                    <tr>
+                                        <th>Keyword</th>
+                                        <th style="text-align: right;">Monthly Searches</th>
+                                        <th style="text-align: center;">Competition</th>
+                                        <th style="text-align: right;">YoY Change</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${report.growingKeywords.map(keyword => `
+                                        <tr>
+                                            <td style="font-weight: 500;">${keyword.Keyword}</td>
+                                            <td style="text-align: right;">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
+                                            <td style="text-align: center;">
+                                                <span class="competition-${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
+                                            </td>
+                                            <td style="text-align: right; color: #059669; font-weight: 600;">+${parsePercentage(keyword['YoY change'])}%</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
+
+                    ${report.opportunities.length > 0 ? `
+                        <div class="section">
+                            <h2 class="section-title">High Opportunity Keywords (Good Volume + Low/Medium Competition)</h2>
+                            <table class="keyword-table">
+                                <thead>
+                                    <tr>
+                                        <th>Keyword</th>
+                                        <th style="text-align: right;">Monthly Searches</th>
+                                        <th style="text-align: center;">Competition</th>
+                                        <th style="text-align: right;">Max Bid</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${report.opportunities.map(keyword => `
+                                        <tr>
+                                            <td style="font-weight: 500;">${keyword.Keyword}</td>
+                                            <td style="text-align: right;">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
+                                            <td style="text-align: center;">
+                                                <span class="competition-${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
+                                            </td>
+                                            <td style="text-align: right;">${parseNumeric(keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    ` : ''}
+
+                    <div class="footer">
+                        <p>This report was generated automatically from your keyword data. All metrics are based on the most recent data available.</p>
+                    </div>
+                </div>
+            `;
+        }
+
+        function newReport() {
+            csvData = null;
+            report = null;
+            
+            // Reset file input
+            document.getElementById('fileInput').value = '';
+            
+            // Hide error and loading messages
+            hideError();
+            hideLoading();
+            
+            // Hide optional sections
+            document.getElementById('growingSection').classList.add('hidden');
+            document.getElementById('opportunitiesSection').classList.add('hidden');
+            
+            // Show upload section, hide report
+            document.getElementById('uploadSection').style.display = 'block';
+            document.getElementById('reportSection').style.display = 'none';
+        }
+    </script>
+</body>
+</html>
