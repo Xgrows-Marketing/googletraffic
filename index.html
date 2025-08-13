@@ -400,7 +400,7 @@
                                 <th>Keyword</th>
                                 <th class="text-right">Monthly Searches</th>
                                 <th class="text-center">Competition</th>
-                                <th class="text-right">Max Bid</th>
+                                <th class="text-right">Top of Page Bid</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -437,7 +437,7 @@
                                 <th>Keyword</th>
                                 <th class="text-right">Monthly Searches</th>
                                 <th class="text-center">Competition</th>
-                                <th class="text-right">Max Bid</th>
+                                <th class="text-right">Top of Page Bid</th>
                             </tr>
                         </thead>
                         <tbody></tbody>
@@ -473,6 +473,13 @@
                 }
             }
             return parseNumeric(value);
+        }
+
+        function calculateAverageBid(lowRange, highRange) {
+            const low = parseNumeric(lowRange);
+            const high = parseNumeric(highRange);
+            if (low === 0 && high === 0) return 0;
+            return (low + high) / 2;
         }
 
         function showError(message) {
@@ -563,7 +570,12 @@
             const avgMonthlySearches = Math.round(totalSearchVolume / totalKeywords);
 
             const competitionDistribution = _.countBy(data, 'Competition');
-            const avgBid = _.meanBy(data, row => parseNumeric(row['Top of page bid (high range)']));
+            
+            // Calculate average bid using the average of low and high range
+            const avgBid = _.meanBy(data, row => calculateAverageBid(
+                row['Top of page bid (low range)'], 
+                row['Top of page bid (high range)']
+            ));
 
             const topKeywords = _.orderBy(data, 
                 row => parseNumeric(row['Avg. monthly searches']), 
@@ -626,7 +638,7 @@
                 </div>
                 <div class="metric-card">
                     <div class="metric-value">$${report.avgBid}</div>
-                    <div class="metric-label">Avg Max Bid</div>
+                    <div class="metric-label">Avg Top of Page Bid</div>
                 </div>
             `;
 
@@ -650,7 +662,7 @@
                             ${keyword.Competition || 'Low'}
                         </span>
                     </td>
-                    <td class="text-right">$${parseNumeric(keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                    <td class="text-right">$${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
                 </tr>
             `).join('');
 
@@ -685,7 +697,7 @@
                                 ${keyword.Competition || 'Low'}
                             </span>
                         </td>
-                        <td class="text-right">$${parseNumeric(keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                        <td class="text-right">$${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
                     </tr>
                 `).join('');
             }
@@ -881,7 +893,7 @@
                         </div>
                         <div class="metric-card">
                             <div class="metric-value">${report.avgBid}</div>
-                            <div class="metric-label">Average Max Bid</div>
+                            <div class="metric-label">Avg Top of Page Bid</div>
                         </div>
                     </div>
 
@@ -905,7 +917,7 @@
                                     <th>Keyword</th>
                                     <th style="text-align: right;">Monthly Searches</th>
                                     <th style="text-align: center;">Competition</th>
-                                    <th style="text-align: right;">Max Bid</th>
+                                    <th style="text-align: right;">Top of Page Bid</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -916,7 +928,7 @@
                                         <td style="text-align: center;">
                                             <span class="competition-${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
                                         </td>
-                                        <td style="text-align: right;">${parseNumeric(keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                                        <td style="text-align: right;">${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
                                     </tr>
                                 `).join('')}
                             </tbody>
@@ -960,7 +972,7 @@
                                         <th>Keyword</th>
                                         <th style="text-align: right;">Monthly Searches</th>
                                         <th style="text-align: center;">Competition</th>
-                                        <th style="text-align: right;">Max Bid</th>
+                                        <th style="text-align: right;">Top of Page Bid</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -971,7 +983,7 @@
                                             <td style="text-align: center;">
                                                 <span class="competition-${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
                                             </td>
-                                            <td style="text-align: right;">${parseNumeric(keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                                            <td style="text-align: right;">${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
