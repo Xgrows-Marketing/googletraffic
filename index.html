@@ -1,0 +1,432 @@
+import React, { useState } from 'react';
+import { Upload, FileText, TrendingUp, Target, DollarSign, Search, BarChart3, AlertCircle, Download } from 'lucide-react';
+import Papa from 'papaparse';
+import _ from 'lodash';
+
+const KeywordAnalyticsSaaS = () => {
+  const [csvData, setCsvData] = useState(null);
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  const processCSV = (file) => {
+    setLoading(true);
+    setError('');
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      dynamicTyping: true,
+      complete: (results) => {
+        try {
+          const data = results.data.filter(row => row.Keyword && row.Keyword.trim() !== '');
+          setCsvData(data);
+          generateReport(data);
+        } catch (err) {
+          setError('Error processing CSV file. Please check the format.');
+        }
+        setLoading(false);
+      },
+      error: (error) => {
+        setError('Failed to parse CSV file: ' + error.message);
+        setLoading(false);
+      }
+    });
+  };
+
+  const parseNumeric = (value) => {
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+      const cleaned = value.replace(/[,$%]/g, '');
+      const num = parseFloat(cleaned);
+      return isNaN(num) ? 0 : num;
+    }
+    return 0;
+  };
+
+  const parsePercentage = (value) => {
+    if (typeof value === 'string' && value.includes('%')) {
+      return parseFloat(value.replace('%', ''));
+    }
+    return parseNumeric(value);
+  };
+
+  const generateReport = (data) => {
+    // Basic metrics
+    const totalKeywords = data.length;
+    const avgMonthlySearches = _.meanBy(data, row => parseNumeric(row['Avg. monthly searches']));
+    const totalSearchVolume = _.sumBy(data, row => parseNumeric(row['Avg. monthly searches']));
+
+    // Competition analysis
+    const competitionDistribution = _.countBy(data, 'Competition');
+    const avgCompetitionIndex = _.meanBy(data, row => parseNumeric(row['Competition (indexed value)']));
+
+    // Bid analysis
+    const avgLowBid = _.meanBy(data, row => parseNumeric(row['Top of page bid (low range)']));
+    const avgHighBid = _.meanBy(data, row => parseNumeric(row['Top of page bid (high range)']));
+
+    // Performance trends
+    const monthlyColumns = [
+      'Searches: Jul 2024', 'Searches: Aug 2024', 'Searches: Sep 2024', 
+      'Searches: Oct 2024', 'Searches: Nov 2024', 'Searches: Dec 2024',
+      'Searches: Jan 2025', 'Searches: Feb 2025', 'Searches: Mar 2025',
+      'Searches: Apr 2025', 'Searches: May 2025', 'Searches: Jun 2025'
+    ];
+
+    const monthlyTrends = monthlyColumns.map(month => ({
+      month: month.replace('Searches: ', ''),
+      volume: _.sumBy(data, row => parseNumeric(row[month]))
+    }));
+
+    // Top performing keywords
+    const topKeywords = _.orderBy(data, 
+      row => parseNumeric(row['Avg. monthly searches']), 
+      'desc'
+    ).slice(0, 10);
+
+    // High opportunity keywords (high volume, low competition)
+    const opportunities = data.filter(row => {
+      const volume = parseNumeric(row['Avg. monthly searches']);
+      const competition = row['Competition'];
+      return volume >= 100 && (competition === 'Low' || competition === 'Medium');
+    }).slice(0, 5);
+
+    // Growth analysis
+    const growingKeywords = data.filter(row => {
+      const yoyChange = parsePercentage(row['YoY change']);
+      return yoyChange > 0;
+    });
+
+    const decliningKeywords = data.filter(row => {
+      const yoyChange = parsePercentage(row['YoY change']);
+      return yoyChange < 0;
+    });
+
+    // Cost analysis
+    const highCostKeywords = _.orderBy(data, 
+      row => parseNumeric(row['Top of page bid (high range)']), 
+      'desc'
+    ).slice(0, 5);
+
+    setReport({
+      overview: {
+        totalKeywords,
+        avgMonthlySearches: Math.round(avgMonthlySearches),
+        totalSearchVolume: Math.round(totalSearchVolume),
+        competitionDistribution,
+        avgCompetitionIndex: Math.round(avgCompetitionIndex),
+        avgLowBid: avgLowBid.toFixed(2),
+        avgHighBid: avgHighBid.toFixed(2)
+      },
+      trends: monthlyTrends,
+      topKeywords,
+      opportunities,
+      growth: {
+        growing: growingKeywords.length,
+        declining: decliningKeywords.length,
+        stable: totalKeywords - growingKeywords.length - decliningKeywords.length
+      },
+      highCostKeywords,
+      growingKeywords: growingKeywords.slice(0, 5),
+      decliningKeywords: decliningKeywords.slice(0, 5)
+    });
+  };
+
+  const handleFileUpload = (event) => {
+    const file = event.target.files[0];
+    if (file && file.type === 'text/csv') {
+      processCSV(file);
+    } else {
+      setError('Please upload a valid CSV file.');
+    }
+  };
+
+  const MetricCard = ({ icon: Icon, title, value, subtitle, trend }) => (
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+      <div className="flex items-center justify-between mb-4">
+        <Icon className="h-8 w-8 text-blue-600" />
+        {trend && (
+          <span className={`text-sm font-medium ${trend > 0 ? 'text-green-600' : 'text-red-600'}`}>
+            {trend > 0 ? '+' : ''}{trend}%
+          </span>
+        )}
+      </div>
+      <h3 className="text-lg font-semibold text-gray-900 mb-2">{title}</h3>
+      <p className="text-3xl font-bold text-gray-900">{value}</p>
+      {subtitle && <p className="text-sm text-gray-600 mt-1">{subtitle}</p>}
+    </div>
+  );
+
+  const KeywordTable = ({ keywords, title, showVolume = true, showBid = false, showChange = false }) => (
+    <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+      <h3 className="text-lg font-semibold text-gray-900 mb-4">{title}</h3>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-gray-200">
+              <th className="text-left py-2">Keyword</th>
+              {showVolume && <th className="text-right py-2">Monthly Searches</th>}
+              <th className="text-center py-2">Competition</th>
+              {showBid && <th className="text-right py-2">Max Bid</th>}
+              {showChange && <th className="text-right py-2">YoY Change</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {keywords.map((keyword, idx) => (
+              <tr key={idx} className="border-b border-gray-100">
+                <td className="py-2 font-medium">{keyword.Keyword}</td>
+                {showVolume && <td className="text-right py-2">{parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>}
+                <td className="text-center py-2">
+                  <span className={`px-2 py-1 rounded text-xs font-medium ${
+                    keyword.Competition === 'High' ? 'bg-red-100 text-red-800' :
+                    keyword.Competition === 'Medium' ? 'bg-yellow-100 text-yellow-800' :
+                    'bg-green-100 text-green-800'
+                  }`}>
+                    {keyword.Competition}
+                  </span>
+                </td>
+                {showBid && <td className="text-right py-2">${parseNumeric(keyword['Top of page bid (high range)']).toFixed(2)}</td>}
+                {showChange && <td className="text-right py-2">{parsePercentage(keyword['YoY change'])}%</td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <div className="bg-white shadow-sm border-b">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <BarChart3 className="h-8 w-8 text-blue-600 mr-3" />
+                <h1 className="text-2xl font-bold text-gray-900">KeywordIQ Analytics</h1>
+              </div>
+              <div className="text-sm text-gray-500">
+                Professional Keyword Performance Analysis
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {!csvData ? (
+          /* Upload Section */
+          <div className="text-center">
+            <div className="bg-white p-12 rounded-lg shadow-md border-2 border-dashed border-gray-300 hover:border-blue-400 transition-colors">
+              <Upload className="h-16 w-16 text-gray-400 mx-auto mb-6" />
+              <h2 className="text-2xl font-semibold text-gray-900 mb-4">Upload Your Keyword Data</h2>
+              <p className="text-gray-600 mb-6">
+                Upload your Google Ads keyword performance CSV to get detailed analytics and insights
+              </p>
+              <label className="bg-blue-600 text-white px-6 py-3 rounded-lg font-medium hover:bg-blue-700 transition-colors cursor-pointer inline-block">
+                Choose CSV File
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileUpload}
+                  className="hidden"
+                />
+              </label>
+            </div>
+            
+            {error && (
+              <div className="mt-4 p-4 bg-red-50 border border-red-200 rounded-lg">
+                <div className="flex items-center">
+                  <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
+                  <span className="text-red-700">{error}</span>
+                </div>
+              </div>
+            )}
+
+            {loading && (
+              <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="flex items-center justify-center">
+                  <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full mr-2"></div>
+                  <span className="text-blue-700">Processing your data...</span>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : (
+          /* Report Section */
+          <div className="space-y-8">
+            {/* Header with download */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-3xl font-bold text-gray-900">Keyword Performance Report</h2>
+                <p className="text-gray-600 mt-2">Comprehensive analysis of {report?.overview.totalKeywords} keywords</p>
+              </div>
+              <button
+                onClick={() => setCsvData(null)}
+                className="bg-gray-600 text-white px-4 py-2 rounded-lg hover:bg-gray-700 transition-colors"
+              >
+                Upload New File
+              </button>
+            </div>
+
+            {report && (
+              <>
+                {/* Overview Metrics */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+                  <MetricCard
+                    icon={Search}
+                    title="Total Keywords"
+                    value={report.overview.totalKeywords.toLocaleString()}
+                    subtitle="Analyzed keywords"
+                  />
+                  <MetricCard
+                    icon={TrendingUp}
+                    title="Total Search Volume"
+                    value={report.overview.totalSearchVolume.toLocaleString()}
+                    subtitle="Monthly searches"
+                  />
+                  <MetricCard
+                    icon={Target}
+                    title="Avg Competition"
+                    value={report.overview.avgCompetitionIndex}
+                    subtitle="Competition index (0-100)"
+                  />
+                  <MetricCard
+                    icon={DollarSign}
+                    title="Avg Max Bid"
+                    value={`$${report.overview.avgHighBid}`}
+                    subtitle="Top of page bid"
+                  />
+                </div>
+
+                {/* Competition Distribution */}
+                <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Competition Distribution</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    {Object.entries(report.overview.competitionDistribution).map(([level, count]) => (
+                      <div key={level} className="text-center p-4 bg-gray-50 rounded-lg">
+                        <div className={`text-2xl font-bold mb-1 ${
+                          level === 'High' ? 'text-red-600' :
+                          level === 'Medium' ? 'text-yellow-600' :
+                          'text-green-600'
+                        }`}>
+                          {count}
+                        </div>
+                        <div className="text-sm text-gray-600">{level} Competition</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Growth Analysis */}
+                <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Year-over-Year Growth Analysis</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="text-center p-4 bg-green-50 rounded-lg">
+                      <div className="text-2xl font-bold text-green-600 mb-1">{report.growth.growing}</div>
+                      <div className="text-sm text-gray-600">Growing Keywords</div>
+                    </div>
+                    <div className="text-center p-4 bg-gray-50 rounded-lg">
+                      <div className="text-2xl font-bold text-gray-600 mb-1">{report.growth.stable}</div>
+                      <div className="text-sm text-gray-600">Stable Keywords</div>
+                    </div>
+                    <div className="text-center p-4 bg-red-50 rounded-lg">
+                      <div className="text-2xl font-bold text-red-600 mb-1">{report.growth.declining}</div>
+                      <div className="text-sm text-gray-600">Declining Keywords</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Monthly Trends Chart */}
+                <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Monthly Search Volume Trends</h3>
+                  <div className="h-64 flex items-end space-x-2">
+                    {report.trends.map((month, idx) => (
+                      <div key={idx} className="flex-1 flex flex-col items-center">
+                        <div
+                          className="w-full bg-blue-500 rounded-t"
+                          style={{
+                            height: `${(month.volume / Math.max(...report.trends.map(m => m.volume))) * 200}px`
+                          }}
+                        ></div>
+                        <div className="text-xs text-gray-600 mt-2 transform -rotate-45 origin-top-left">
+                          {month.month}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Tables */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <KeywordTable
+                    keywords={report.topKeywords}
+                    title="Top Performing Keywords"
+                    showVolume={true}
+                  />
+                  
+                  <KeywordTable
+                    keywords={report.opportunities}
+                    title="High Opportunity Keywords"
+                    showVolume={true}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <KeywordTable
+                    keywords={report.growingKeywords}
+                    title="Fastest Growing Keywords"
+                    showVolume={true}
+                    showChange={true}
+                  />
+                  
+                  <KeywordTable
+                    keywords={report.highCostKeywords}
+                    title="Highest Cost Keywords"
+                    showVolume={false}
+                    showBid={true}
+                  />
+                </div>
+
+                {/* Summary & Recommendations */}
+                <div className="bg-white p-6 rounded-lg shadow-md border border-gray-200">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Key Insights & Recommendations</h3>
+                  <div className="space-y-4">
+                    <div className="p-4 bg-blue-50 rounded-lg">
+                      <h4 className="font-medium text-blue-900 mb-2">Search Volume Analysis</h4>
+                      <p className="text-blue-800">
+                        Your keyword portfolio has a total monthly search volume of {report.overview.totalSearchVolume.toLocaleString()} searches, 
+                        with an average of {report.overview.avgMonthlySearches.toLocaleString()} searches per keyword.
+                      </p>
+                    </div>
+                    
+                    <div className="p-4 bg-green-50 rounded-lg">
+                      <h4 className="font-medium text-green-900 mb-2">Growth Opportunities</h4>
+                      <p className="text-green-800">
+                        {report.growth.growing} keywords are showing positive YoY growth. Focus on optimizing these growing terms 
+                        and consider increasing bids for high-performing keywords with low to medium competition.
+                      </p>
+                    </div>
+                    
+                    {report.growth.declining > 0 && (
+                      <div className="p-4 bg-yellow-50 rounded-lg">
+                        <h4 className="font-medium text-yellow-900 mb-2">Areas of Concern</h4>
+                        <p className="text-yellow-800">
+                          {report.growth.declining} keywords are declining YoY. Review these terms for relevance and consider 
+                          refreshing content or exploring related long-tail variations.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default KeywordAnalyticsSaaS;
