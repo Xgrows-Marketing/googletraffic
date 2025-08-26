@@ -444,6 +444,25 @@
                     </table>
                 </div>
             </div>
+
+            <!-- All Keywords -->
+            <div class="section" id="allKeywordsSection">
+                <h3 class="section-title">All Keywords</h3>
+                <p style="color: #6b7280; font-size: 0.875rem; margin-bottom: 1rem;">Complete list of all uploaded keywords</p>
+                <div class="table-container">
+                    <table class="keyword-table" id="allKeywordsTable">
+                        <thead>
+                            <tr>
+                                <th>Keyword</th>
+                                <th class="text-right">Monthly Searches</th>
+                                <th class="text-center">Competition</th>
+                                <th class="text-right">Top of Page Bid</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -593,6 +612,12 @@
                 return volume >= 50 && (competition === 'Low' || competition === 'Medium');
             }).slice(0, 5);
 
+            // Sort all keywords by search volume for display
+            const allKeywords = _.orderBy(data, 
+                row => parseNumeric(row['Avg. monthly searches']), 
+                'desc'
+            );
+
             report = {
                 totalKeywords,
                 totalSearchVolume,
@@ -602,6 +627,7 @@
                 topKeywords,
                 growingKeywords,
                 opportunities,
+                allKeywords,
                 generatedDate: new Date().toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
@@ -683,6 +709,21 @@
                     </tr>
                 `).join('');
             }
+
+            // Display all keywords
+            const allKeywordsTable = document.getElementById('allKeywordsTable').querySelector('tbody');
+            allKeywordsTable.innerHTML = report.allKeywords.map(keyword => `
+                <tr>
+                    <td style="font-weight: 500;">${keyword.Keyword}</td>
+                    <td class="text-right">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
+                    <td class="text-center">
+                        <span class="competition-badge competition-badge-${keyword.Competition?.toLowerCase() || 'low'}">
+                            ${keyword.Competition || 'Low'}
+                        </span>
+                    </td>
+                    <td class="text-right">${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                </tr>
+            `).join('');
 
             // Display opportunities if available
             if (report.opportunities.length > 0) {
@@ -1049,6 +1090,33 @@
                             </table>
                         </div>
                     ` : ''}
+
+                    <div class="section">
+                        <h2 class="section-title">All Keywords</h2>
+                        <p style="font-size: 12px; color: #6B7280; margin-bottom: 15px;">Complete list of all uploaded keywords sorted by search volume</p>
+                        <table class="keyword-table">
+                            <thead>
+                                <tr>
+                                    <th>Keyword</th>
+                                    <th style="text-align: right;">Monthly Searches</th>
+                                    <th style="text-align: center;">Competition</th>
+                                    <th style="text-align: right;">Top of Page Bid</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${report.allKeywords.map(keyword => `
+                                    <tr>
+                                        <td class="keyword-name">${keyword.Keyword}</td>
+                                        <td class="number-cell" style="text-align: right;">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
+                                        <td style="text-align: center;">
+                                            <span class="competition-badge ${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
+                                        </td>
+                                        <td class="number-cell" style="text-align: right;">${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    </div>
 
                     <div class="footer">
                         <p><strong>Keyword Performance Analysis Report</strong></p>
