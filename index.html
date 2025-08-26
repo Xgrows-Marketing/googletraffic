@@ -6,6 +6,8 @@
     <title>Keyword Report Generator</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/lodash.js/4.17.21/lodash.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         * {
             margin: 0;
@@ -309,6 +311,15 @@
         .text-green { color: #059669; font-weight: 500; }
         
         .hidden { display: none; }
+
+        /* PDF-specific styles that will be hidden on screen */
+        .pdf-content {
+            display: none;
+            background: white;
+            font-family: Arial, sans-serif;
+            line-height: 1.4;
+            color: #333;
+        }
         
         @media (max-width: 768px) {
             .report-header {
@@ -721,7 +732,7 @@
                             ${keyword.Competition || 'Low'}
                         </span>
                     </td>
-                    <td class="text-right">${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                    <td class="text-right">$${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
                 </tr>
             `).join('');
 
@@ -744,364 +755,290 @@
             }
         }
 
-        function downloadPDF() {
-            const printWindow = window.open('', '_blank');
-            const reportHTML = generateCanvaFriendlyContent();
-            
-            printWindow.document.write(`
-                <!DOCTYPE html>
-                <html>
-                    <head>
-                        <title>Keyword Performance Report</title>
-                        <meta charset="utf-8">
-                        <style>
-                            * { 
-                                margin: 0; 
-                                padding: 0; 
-                                box-sizing: border-box; 
-                            }
-                            body { 
-                                font-family: Arial, sans-serif; 
-                                line-height: 1.4; 
-                                color: #333333;
-                                background: white;
-                                font-size: 14px;
-                                padding: 20px;
-                            }
-                            .container { 
-                                max-width: 800px; 
-                                margin: 0 auto; 
-                                background: white;
-                            }
-                            .header { 
-                                text-align: center; 
-                                margin-bottom: 30px;
-                                padding: 20px;
-                                background: #f8f9fa;
-                                border: 2px solid #2563eb;
-                            }
-                            .header h1 { 
-                                color: #2563eb; 
-                                font-size: 28px; 
-                                margin-bottom: 10px;
-                                font-weight: bold;
-                            }
-                            .header p { 
-                                color: #666666; 
-                                font-size: 14px;
-                            }
-                            .metrics-section {
-                                margin-bottom: 30px;
-                            }
-                            .metrics-row { 
-                                display: table;
-                                width: 100%;
-                                margin-bottom: 20px;
-                            }
-                            .metric-item { 
-                                display: table-cell;
-                                width: 33.33%;
-                                text-align: center;
-                                padding: 20px;
-                                background: #f8f9fa;
-                                border: 1px solid #e9ecef;
-                                vertical-align: top;
-                            }
-                            .metric-value { 
-                                font-size: 24px; 
-                                font-weight: bold; 
-                                color: #2563eb; 
-                                margin-bottom: 8px;
-                            }
-                            .metric-label { 
-                                font-size: 11px; 
-                                color: #666666; 
-                                text-transform: uppercase;
-                                font-weight: bold;
-                            }
-                            .section { 
-                                margin-bottom: 30px;
-                                border: 1px solid #e9ecef;
-                                padding: 20px;
-                                background: white;
-                            }
-                            .section-title { 
-                                font-size: 18px; 
-                                color: #333333; 
-                                margin-bottom: 15px;
-                                font-weight: bold;
-                                border-bottom: 2px solid #2563eb;
-                                padding-bottom: 8px;
-                            }
-                            .competition-row {
-                                display: table;
-                                width: 100%;
-                                margin-bottom: 20px;
-                            }
-                            .competition-item {
-                                display: table-cell;
-                                width: 33.33%;
-                                text-align: center;
-                                padding: 15px;
-                                background: #f8f9fa;
-                                border: 1px solid #e9ecef;
-                            }
-                            .competition-count {
-                                font-size: 20px;
-                                font-weight: bold;
-                                margin-bottom: 5px;
-                            }
-                            .competition-count.high { color: #dc2626; }
-                            .competition-count.medium { color: #d97706; }
-                            .competition-count.low { color: #16a34a; }
-                            .competition-label {
-                                font-size: 12px;
-                                color: #666666;
-                                font-weight: bold;
-                            }
-                            .simple-table { 
-                                width: 100%; 
-                                border-collapse: collapse; 
-                                font-size: 12px;
-                                margin-top: 10px;
-                            }
-                            .simple-table th { 
-                                background: #f8f9fa; 
-                                padding: 12px 8px; 
-                                text-align: left; 
-                                font-weight: bold;
-                                color: #333333;
-                                border: 1px solid #dee2e6;
-                            }
-                            .simple-table td { 
-                                padding: 10px 8px; 
-                                border: 1px solid #dee2e6;
-                                vertical-align: top;
-                            }
-                            .simple-table tr:nth-child(even) {
-                                background: #f8f9fa;
-                            }
-                            .keyword-name {
-                                font-weight: bold;
-                                color: #333333;
-                            }
-                            .competition-high {
-                                background: #fee2e2;
-                                color: #dc2626;
-                                padding: 3px 6px;
-                                border-radius: 3px;
-                                font-size: 10px;
-                                font-weight: bold;
-                            }
-                            .competition-medium {
-                                background: #fef3c7;
-                                color: #d97706;
-                                padding: 3px 6px;
-                                border-radius: 3px;
-                                font-size: 10px;
-                                font-weight: bold;
-                            }
-                            .competition-low {
-                                background: #dcfce7;
-                                color: #16a34a;
-                                padding: 3px 6px;
-                                border-radius: 3px;
-                                font-size: 10px;
-                                font-weight: bold;
-                            }
-                            .number-cell {
-                                font-weight: bold;
-                                color: #333333;
-                                text-align: right;
-                            }
-                            .growth-positive {
-                                color: #16a34a;
-                                font-weight: bold;
-                                text-align: right;
-                            }
-                            .text-center {
-                                text-align: center;
-                            }
-                            .footer {
-                                margin-top: 30px;
-                                padding: 15px;
-                                background: #f8f9fa;
-                                border: 1px solid #e9ecef;
-                                text-align: center;
-                                color: #666666;
-                                font-size: 11px;
-                            }
-                            .footer p {
-                                margin-bottom: 5px;
-                            }
-                        </style>
-                    </head>
-                    <body>
-                        ${reportHTML}
-                    </body>
-                </html>
-            `);
-            
-            printWindow.document.close();
-            setTimeout(() => {
-                printWindow.print();
-                printWindow.close();
-            }, 250);
-        }
+        async function downloadPDF() {
+            if (!report) {
+                alert('No report data available');
+                return;
+            }
 
-        function generatePDFContent() {
-            if (!report) return '';
+            try {
+                // Show loading state
+                const downloadBtn = document.querySelector('.btn-green');
+                const originalText = downloadBtn.innerHTML;
+                downloadBtn.innerHTML = '<div class="spinner" style="width:14px;height:14px;margin-right:8px;"></div>Generating PDF...';
+                downloadBtn.disabled = true;
 
-            return `
-                <div class="report-container">
-                    <div class="header">
-                        <h1>Keyword Performance Report</h1>
-                        <p>Generated on ${report.generatedDate}</p>
-                    </div>
+                const { jsPDF } = window.jspdf;
+                const pdf = new jsPDF('p', 'mm', 'a4');
+                
+                // PDF settings
+                const pageWidth = pdf.internal.pageSize.width;
+                const pageHeight = pdf.internal.pageSize.height;
+                const margin = 15;
+                const contentWidth = pageWidth - (margin * 2);
+                let currentY = margin;
 
-                    <div class="metrics-grid">
-                        <div class="metric-card">
-                            <div class="metric-value">${report.totalKeywords}</div>
-                            <div class="metric-label">Total Keywords</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value">${report.totalSearchVolume.toLocaleString()}</div>
-                            <div class="metric-label">Total Avg Monthly Searches</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-value">${report.avgBid}</div>
-                            <div class="metric-label">Avg Top of Page Bid</div>
-                        </div>
-                    </div>
+                // Helper function to check if we need a new page
+                function checkPageBreak(neededHeight) {
+                    if (currentY + neededHeight > pageHeight - margin) {
+                        pdf.addPage();
+                        currentY = margin;
+                        return true;
+                    }
+                    return false;
+                }
 
-                    <div class="section">
-                        <h2 class="section-title">Competition Analysis</h2>
-                        <div class="competition-grid">
-                            ${Object.entries(report.competitionDistribution).map(([level, count]) => `
-                                <div class="competition-item">
-                                    <div class="competition-count ${level.toLowerCase()}">${count}</div>
-                                    <div class="competition-label">${level} Competition</div>
-                                </div>
-                            `).join('')}
-                        </div>
-                    </div>
+                // Title
+                pdf.setFontSize(24);
+                pdf.setFont(undefined, 'bold');
+                pdf.text('Keyword Performance Report', pageWidth / 2, currentY, { align: 'center' });
+                currentY += 15;
 
-                    <div class="section">
-                        <h2 class="section-title">Top 10 Keywords by Search Volume</h2>
-                        <table class="keyword-table">
-                            <thead>
-                                <tr>
-                                    <th>Keyword</th>
-                                    <th style="text-align: right;">Monthly Searches</th>
-                                    <th style="text-align: center;">Competition</th>
-                                    <th style="text-align: right;">Top of Page Bid</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${report.topKeywords.map(keyword => `
-                                    <tr>
-                                        <td class="keyword-name">${keyword.Keyword}</td>
-                                        <td class="number-cell" style="text-align: right;">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
-                                        <td style="text-align: center;">
-                                            <span class="competition-badge ${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
-                                        </td>
-                                        <td class="number-cell" style="text-align: right;">${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                pdf.setFontSize(12);
+                pdf.setFont(undefined, 'normal');
+                pdf.text(`Generated on ${report.generatedDate}`, pageWidth / 2, currentY, { align: 'center' });
+                currentY += 20;
 
-                    ${report.growingKeywords.length > 0 ? `
-                        <div class="section">
-                            <h2 class="section-title">Growing Keywords (Positive YoY Growth)</h2>
-                            <table class="keyword-table">
-                                <thead>
-                                    <tr>
-                                        <th>Keyword</th>
-                                        <th style="text-align: right;">Monthly Searches</th>
-                                        <th style="text-align: center;">Competition</th>
-                                        <th style="text-align: right;">YoY Change</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${report.growingKeywords.map(keyword => `
-                                        <tr>
-                                            <td class="keyword-name">${keyword.Keyword}</td>
-                                            <td class="number-cell" style="text-align: right;">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
-                                            <td style="text-align: center;">
-                                                <span class="competition-badge ${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
-                                            </td>
-                                            <td class="growth-positive" style="text-align: right;">+${parsePercentage(keyword['YoY change'])}%</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    ` : ''}
+                // Key Metrics
+                pdf.setFontSize(16);
+                pdf.setFont(undefined, 'bold');
+                pdf.text('Key Metrics', margin, currentY);
+                currentY += 10;
 
-                    ${report.opportunities.length > 0 ? `
-                        <div class="section">
-                            <h2 class="section-title">High Opportunity Keywords (Good Volume + Low/Medium Competition)</h2>
-                            <table class="keyword-table">
-                                <thead>
-                                    <tr>
-                                        <th>Keyword</th>
-                                        <th style="text-align: right;">Monthly Searches</th>
-                                        <th style="text-align: center;">Competition</th>
-                                        <th style="text-align: right;">Top of Page Bid</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${report.opportunities.map(keyword => `
-                                        <tr>
-                                            <td class="keyword-name">${keyword.Keyword}</td>
-                                            <td class="number-cell" style="text-align: right;">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
-                                            <td style="text-align: center;">
-                                                <span class="competition-badge ${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
-                                            </td>
-                                            <td class="number-cell" style="text-align: right;">${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    ` : ''}
+                pdf.setFontSize(10);
+                pdf.setFont(undefined, 'normal');
+                
+                const metrics = [
+                    ['Total Keywords', report.totalKeywords.toString()],
+                    ['Total Monthly Searches', report.totalSearchVolume.toLocaleString()],
+                    ['Average per Keyword', report.avgMonthlySearches.toLocaleString()],
+                    ['Average Top of Page Bid', `${report.avgBid}`]
+                ];
 
-                    <div class="section">
-                        <h2 class="section-title">All Keywords</h2>
-                        <p style="font-size: 12px; color: #6B7280; margin-bottom: 15px;">Complete list of all uploaded keywords sorted by search volume</p>
-                        <table class="keyword-table">
-                            <thead>
-                                <tr>
-                                    <th>Keyword</th>
-                                    <th style="text-align: right;">Monthly Searches</th>
-                                    <th style="text-align: center;">Competition</th>
-                                    <th style="text-align: right;">Top of Page Bid</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${report.allKeywords.map(keyword => `
-                                    <tr>
-                                        <td class="keyword-name">${keyword.Keyword}</td>
-                                        <td class="number-cell" style="text-align: right;">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
-                                        <td style="text-align: center;">
-                                            <span class="competition-badge ${keyword.Competition?.toLowerCase() || 'low'}">${keyword.Competition || 'Low'}</span>
-                                        </td>
-                                        <td class="number-cell" style="text-align: right;">${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                    </div>
+                const metricsPerRow = 2;
+                const metricBoxWidth = contentWidth / metricsPerRow;
+                const metricBoxHeight = 25;
 
-                    <div class="footer">
-                        <p><strong>Keyword Performance Analysis Report</strong></p>
-                        <p>This report provides insights based on search volume, competition levels, and bidding data.</p>
-                        <p>Generated automatically from uploaded CSV data • ${new Date().getFullYear()}</p>
-                    </div>
-                </div>
-            `;
+                for (let i = 0; i < metrics.length; i += metricsPerRow) {
+                    checkPageBreak(metricBoxHeight + 5);
+                    
+                    for (let j = 0; j < metricsPerRow && i + j < metrics.length; j++) {
+                        const x = margin + (j * metricBoxWidth);
+                        const metric = metrics[i + j];
+                        
+                        // Draw metric box
+                        pdf.setFillColor(248, 249, 250);
+                        pdf.rect(x, currentY, metricBoxWidth - 2, metricBoxHeight, 'F');
+                        pdf.setDrawColor(229, 231, 235);
+                        pdf.rect(x, currentY, metricBoxWidth - 2, metricBoxHeight, 'S');
+                        
+                        // Add metric text
+                        pdf.setFont(undefined, 'bold');
+                        pdf.setFontSize(14);
+                        pdf.text(metric[1], x + (metricBoxWidth - 2) / 2, currentY + 12, { align: 'center' });
+                        
+                        pdf.setFont(undefined, 'normal');
+                        pdf.setFontSize(8);
+                        pdf.text(metric[0], x + (metricBoxWidth - 2) / 2, currentY + 20, { align: 'center' });
+                    }
+                    currentY += metricBoxHeight + 5;
+                }
+
+                currentY += 10;
+
+                // Competition Distribution
+                pdf.setFontSize(16);
+                pdf.setFont(undefined, 'bold');
+                pdf.text('Competition Distribution', margin, currentY);
+                currentY += 10;
+
+                const competitionEntries = Object.entries(report.competitionDistribution);
+                const compBoxWidth = contentWidth / 3;
+                const compBoxHeight = 20;
+
+                checkPageBreak(compBoxHeight + 5);
+
+                for (let i = 0; i < competitionEntries.length; i++) {
+                    const [level, count] = competitionEntries[i];
+                    const x = margin + (i * compBoxWidth);
+                    
+                    // Set color based on competition level
+                    let fillColor = [248, 249, 250]; // default gray
+                    if (level === 'High') fillColor = [254, 242, 242];
+                    else if (level === 'Medium') fillColor = [254, 243, 199];
+                    else if (level === 'Low') fillColor = [209, 250, 229];
+                    
+                    pdf.setFillColor(...fillColor);
+                    pdf.rect(x, currentY, compBoxWidth - 2, compBoxHeight, 'F');
+                    pdf.setDrawColor(229, 231, 235);
+                    pdf.rect(x, currentY, compBoxWidth - 2, compBoxHeight, 'S');
+                    
+                    pdf.setFont(undefined, 'bold');
+                    pdf.setFontSize(12);
+                    pdf.text(count.toString(), x + (compBoxWidth - 2) / 2, currentY + 10, { align: 'center' });
+                    
+                    pdf.setFont(undefined, 'normal');
+                    pdf.setFontSize(8);
+                    pdf.text(`${level} Competition`, x + (compBoxWidth - 2) / 2, currentY + 16, { align: 'center' });
+                }
+
+                currentY += compBoxHeight + 15;
+
+                // Helper function to create tables
+                function createTable(title, data, headers) {
+                    checkPageBreak(60); // Ensure space for title and at least a few rows
+                    
+                    pdf.setFontSize(16);
+                    pdf.setFont(undefined, 'bold');
+                    pdf.text(title, margin, currentY);
+                    currentY += 10;
+
+                    if (data.length === 0) {
+                        pdf.setFontSize(10);
+                        pdf.setFont(undefined, 'normal');
+                        pdf.text('No data available', margin, currentY);
+                        currentY += 15;
+                        return;
+                    }
+
+                    const colWidths = [
+                        contentWidth * 0.4,  // Keyword
+                        contentWidth * 0.2,  // Monthly Searches
+                        contentWidth * 0.2,  // Competition
+                        contentWidth * 0.2   // Bid/Growth
+                    ];
+
+                    // Table headers
+                    checkPageBreak(20);
+                    pdf.setFillColor(248, 249, 250);
+                    pdf.rect(margin, currentY, contentWidth, 8, 'F');
+                    pdf.setDrawColor(229, 231, 235);
+                    pdf.rect(margin, currentY, contentWidth, 8, 'S');
+
+                    pdf.setFont(undefined, 'bold');
+                    pdf.setFontSize(8);
+                    
+                    let x = margin;
+                    headers.forEach((header, i) => {
+                        const align = i === 0 ? 'left' : (i === 2 ? 'center' : 'right');
+                        const textX = align === 'left' ? x + 2 : 
+                                     align === 'center' ? x + colWidths[i] / 2 : 
+                                     x + colWidths[i] - 2;
+                        pdf.text(header, textX, currentY + 5, { align });
+                        x += colWidths[i];
+                    });
+
+                    currentY += 8;
+
+                    // Table rows
+                    pdf.setFont(undefined, 'normal');
+                    data.forEach((row, index) => {
+                        if (index >= 10) return; // Limit rows to prevent overcrowding
+                        
+                        checkPageBreak(10);
+                        
+                        const rowY = currentY;
+                        
+                        // Alternating row background
+                        if (index % 2 === 0) {
+                            pdf.setFillColor(249, 250, 251);
+                            pdf.rect(margin, rowY, contentWidth, 8, 'F');
+                        }
+                        
+                        pdf.setDrawColor(243, 244, 246);
+                        pdf.rect(margin, rowY, contentWidth, 8, 'S');
+
+                        let x = margin;
+                        
+                        // Keyword
+                        pdf.setFont(undefined, 'bold');
+                        pdf.setFontSize(7);
+                        const keywordText = row[0].length > 30 ? row[0].substring(0, 30) + '...' : row[0];
+                        pdf.text(keywordText, x + 2, rowY + 5);
+                        x += colWidths[0];
+                        
+                        // Monthly Searches
+                        pdf.setFont(undefined, 'normal');
+                        pdf.text(row[1], x + colWidths[1] - 2, rowY + 5, { align: 'right' });
+                        x += colWidths[1];
+                        
+                        // Competition
+                        pdf.text(row[2], x + colWidths[2] / 2, rowY + 5, { align: 'center' });
+                        x += colWidths[2];
+                        
+                        // Bid/Growth
+                        pdf.text(row[3], x + colWidths[3] - 2, rowY + 5, { align: 'right' });
+                        
+                        currentY += 8;
+                    });
+                    
+                    currentY += 10;
+                }
+
+                // Top Keywords Table
+                const topKeywordsData = report.topKeywords.map(keyword => [
+                    keyword.Keyword,
+                    parseNumeric(keyword['Avg. monthly searches']).toLocaleString(),
+                    keyword.Competition || 'Low',
+                    `${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}`
+                ]);
+
+                createTable('Top 10 Keywords by Search Volume', topKeywordsData, 
+                    ['Keyword', 'Monthly Searches', 'Competition', 'Top Bid']);
+
+                // Growing Keywords Table (if available)
+                if (report.growingKeywords.length > 0) {
+                    const growingKeywordsData = report.growingKeywords.map(keyword => [
+                        keyword.Keyword,
+                        parseNumeric(keyword['Avg. monthly searches']).toLocaleString(),
+                        keyword.Competition || 'Low',
+                        `+${parsePercentage(keyword['YoY change'])}%`
+                    ]);
+
+                    createTable('Growing Keywords (Positive YoY Growth)', growingKeywordsData,
+                        ['Keyword', 'Monthly Searches', 'Competition', 'YoY Growth']);
+                }
+
+                // Opportunities Table (if available)
+                if (report.opportunities.length > 0) {
+                    const opportunitiesData = report.opportunities.map(keyword => [
+                        keyword.Keyword,
+                        parseNumeric(keyword['Avg. monthly searches']).toLocaleString(),
+                        keyword.Competition || 'Low',
+                        `${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}`
+                    ]);
+
+                    createTable('High Opportunity Keywords (Good Volume + Low/Medium Competition)', 
+                        opportunitiesData.slice(0, 10), 
+                        ['Keyword', 'Monthly Searches', 'Competition', 'Top Bid']);
+                }
+
+                // Footer
+                checkPageBreak(20);
+                currentY = pageHeight - 20;
+                pdf.setFontSize(8);
+                pdf.setFont(undefined, 'normal');
+                pdf.setTextColor(100, 100, 100);
+                pdf.text('Keyword Performance Analysis Report', pageWidth / 2, currentY, { align: 'center' });
+                pdf.text(`Generated on ${new Date().toLocaleDateString()} • Page 1 of ${pdf.internal.getNumberOfPages()}`, 
+                    pageWidth / 2, currentY + 5, { align: 'center' });
+
+                // Save the PDF
+                pdf.save(`Keyword_Performance_Report_${new Date().toISOString().split('T')[0]}.pdf`);
+
+                // Reset button
+                downloadBtn.innerHTML = originalText;
+                downloadBtn.disabled = false;
+
+            } catch (error) {
+                console.error('PDF generation error:', error);
+                alert('Error generating PDF. Please try again.');
+                
+                // Reset button on error
+                const downloadBtn = document.querySelector('.btn-green');
+                downloadBtn.innerHTML = originalText;
+                downloadBtn.disabled = false;
+            }
         }
 
         function newReport() {
