@@ -311,15 +311,6 @@
         .text-green { color: #059669; font-weight: 500; }
         
         .hidden { display: none; }
-
-        /* PDF-specific styles that will be hidden on screen */
-        .pdf-content {
-            display: none;
-            background: white;
-            font-family: Arial, sans-serif;
-            line-height: 1.4;
-            color: #333;
-        }
         
         @media (max-width: 768px) {
             .report-header {
@@ -593,7 +584,7 @@
         }
 
         function generateReport(data) {
-            console.log('Processing data:', data); // Debug log
+            console.log('Processing data:', data);
 
             const totalKeywords = data.length;
             const totalSearchVolume = _.sumBy(data, row => parseNumeric(row['Avg. monthly searches']));
@@ -646,7 +637,7 @@
                 })
             };
 
-            console.log('Generated report:', report); // Debug log
+            console.log('Generated report:', report);
             displayReport();
         }
 
@@ -721,21 +712,6 @@
                 `).join('');
             }
 
-            // Display all keywords
-            const allKeywordsTable = document.getElementById('allKeywordsTable').querySelector('tbody');
-            allKeywordsTable.innerHTML = report.allKeywords.map(keyword => `
-                <tr>
-                    <td style="font-weight: 500;">${keyword.Keyword}</td>
-                    <td class="text-right">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
-                    <td class="text-center">
-                        <span class="competition-badge competition-badge-${keyword.Competition?.toLowerCase() || 'low'}">
-                            ${keyword.Competition || 'Low'}
-                        </span>
-                    </td>
-                    <td class="text-right">$${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
-                </tr>
-            `).join('');
-
             // Display opportunities if available
             if (report.opportunities.length > 0) {
                 document.getElementById('opportunitiesSection').classList.remove('hidden');
@@ -753,6 +729,21 @@
                     </tr>
                 `).join('');
             }
+
+            // Display all keywords
+            const allKeywordsTable = document.getElementById('allKeywordsTable').querySelector('tbody');
+            allKeywordsTable.innerHTML = report.allKeywords.map(keyword => `
+                <tr>
+                    <td style="font-weight: 500;">${keyword.Keyword}</td>
+                    <td class="text-right">${parseNumeric(keyword['Avg. monthly searches']).toLocaleString()}</td>
+                    <td class="text-center">
+                        <span class="competition-badge competition-badge-${keyword.Competition?.toLowerCase() || 'low'}">
+                            ${keyword.Competition || 'Low'}
+                        </span>
+                    </td>
+                    <td class="text-right">$${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}</td>
+                </tr>
+            `).join('');
         }
 
         async function downloadPDF() {
@@ -933,8 +924,6 @@
                     // Table rows
                     pdf.setFont(undefined, 'normal');
                     data.forEach((row, index) => {
-                        if (index >= 10) return; // Limit rows to prevent overcrowding
-                        
                         checkPageBreak(10);
                         
                         const rowY = currentY;
@@ -1010,6 +999,30 @@
 
                     createTable('High Opportunity Keywords (Good Volume + Low/Medium Competition)', 
                         opportunitiesData.slice(0, 10), 
+                        ['Keyword', 'Monthly Searches', 'Competition', 'Top Bid']);
+                }
+
+                // All Keywords Table - Display complete list in chunks to handle large datasets
+                const allKeywordsData = report.allKeywords.map(keyword => [
+                    keyword.Keyword,
+                    parseNumeric(keyword['Avg. monthly searches']).toLocaleString(),
+                    keyword.Competition || 'Low',
+                    `${calculateAverageBid(keyword['Top of page bid (low range)'], keyword['Top of page bid (high range)']).toFixed(2)}`
+                ]);
+
+                // Split all keywords into chunks for better PDF handling
+                const chunkSize = 25; // Display 25 keywords per section
+                for (let i = 0; i < allKeywordsData.length; i += chunkSize) {
+                    const chunk = allKeywordsData.slice(i, i + chunkSize);
+                    const isFirstChunk = i === 0;
+                    const chunkNumber = Math.floor(i / chunkSize) + 1;
+                    const totalChunks = Math.ceil(allKeywordsData.length / chunkSize);
+                    
+                    const sectionTitle = isFirstChunk 
+                        ? `All Keywords (${allKeywordsData.length} total)` 
+                        : `All Keywords - Continued (Part ${chunkNumber} of ${totalChunks})`;
+                    
+                    createTable(sectionTitle, chunk, 
                         ['Keyword', 'Monthly Searches', 'Competition', 'Top Bid']);
                 }
 
